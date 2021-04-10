@@ -4,16 +4,13 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db import connections
 
+from blogs.models import Post
+
 @csrf_exempt
 def post_list(request):
   if request.method == "GET":
-    with connections['default'].cursor() as cursor:
-      cursor.execute("SELECT * FROM blogs_post")
-      columns = [col[0] for col in cursor.description]
-      data = [
-        dict(zip(columns, row))
-        for row in cursor.fetchall()
-      ]
+    posts = Post.objects.all()
+    data = list(posts.values())
 
     response_data = {}
     response_data['data'] = data
@@ -25,8 +22,12 @@ def post_list(request):
   if request.method == "POST":
     data = json.loads(request.body)
 
-    with connections['default'].cursor() as cursor:
-     cursor.execute("INSERT INTO blogs_post (title, content) VALUES (%s, %s)", [ data["title"], data["content"] ])
+    post = Post(
+      title=data["title"],
+      content=data["content"]
+    )
+
+    post.save()
 
     response = JsonResponse({"message": "created post successfully" })
     response.status_code = 201
@@ -36,15 +37,8 @@ def post_list(request):
 @csrf_exempt
 def single_post_detail(request, post_id):
   if request.method == "GET":
-    with connections["default"].cursor() as cursor:
-      cursor.execute("SELECT * FROM blogs_post WHERE id = %s", [post_id])
-
-      columns = [col[0] for col in cursor.description]
-
-      data = [
-        dict(zip(columns, row))
-        for row in cursor.fetchall()
-      ]
+    post = Post.objects.filter(id=post_id)
+    data = post.values()[0]
 
     response_data = {}
     response_data["data"] = data
@@ -56,20 +50,18 @@ def single_post_detail(request, post_id):
   if request.method == "PUT":
     request_data = json.loads(request.body)
 
-    with connections['default'].cursor() as cursor:
-      query = "UPDATE blogs_post SET title=%s, content=%s WHERE id=%s"
-      cursor.execute(
-        query, 
-        [request_data["title"], request_data["content"], post_id]
-      )
+    post = Post.objects.filter(id=post_id)[0]
+    post.title = request_data["title"]
+    post.content = request_data["content"]
+    post.save()
     
     response = JsonResponse({ "message": "updated post successfully." })
     response.status_code = 200
     return response
 
   if request.method == "DELETE":
-    with connections['default'].cursor() as cursor:
-      cursor.execute("DELETE FROM blogs_post WHERE id = %s", [post_id])
+    post = Post.objects.filter(id=post_id)[0]
+    post.delete()
     
     response = JsonResponse({ "message": "deleted post successfully" })
     response.status_code = 200
