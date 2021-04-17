@@ -4,69 +4,54 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db import connections
 
-from blogs.models import Post
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from blogs.serializers import CommentSerializer, PostSerializer
+from blogs.models import Post, Comment
 
-@csrf_exempt
+@api_view(['GET'])
+def comment_list(request, post_id):
+  if request.method == "GET":
+    comments = Comment.objects.filter(post_id=post_id)
+    serializer = CommentSerializer(comments, many=True)
+    return Response({ "data": serializer.data })
+
+@api_view(['GET', 'POST'])
 def post_list(request):
   if request.method == "GET":
     posts = Post.objects.all()
-    data = list(posts.values())
-
-    response_data = {}
-    response_data['data'] = data
-    response = JsonResponse(response_data)
-    response.status_code = 200
-    return response
-
+    serializer = PostSerializer(posts, many=True)
+    return Response({ "data": serializer.data })
 
   if request.method == "POST":
-    data = json.loads(request.body)
+    serializer = PostSerializer(data=request.data)
 
-    post = Post(
-      title=data["title"],
-      content=data["content"]
-    )
+    if serializer.is_valid():
+      serializer.save()
+      return Response({ "message": "created post successfully" }, status=status.HTTP_201_CREATED)
+    
+    return Response({ "message": "created post failed", "errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
-    post.save()
 
-    response = JsonResponse({"message": "created post successfully" })
-    response.status_code = 201
-
-    return response
-
-@csrf_exempt
+@api_view(['GET', 'PUT', 'DELETE'])
 def single_post_detail(request, post_id):
+  post = Post.objects.filter(id=post_id)[0]
+
+  if not len(post):
+    return Response({ "message": "post not found" }, status=status.HTTP_404_NOT_FOUND)
+
   if request.method == "GET":
-    post = Post.objects.filter(id=post_id)
-    data = post.values()[0]
-
-    response_data = {}
-    response_data["data"] = data
-
-    response = JsonResponse(response_data)
-    response.status_code = 200
-    return response
+    serializer = PostSerializer(post)
+    return Response({ "data": serializer.data })
 
   if request.method == "PUT":
-    request_data = json.loads(request.body)
-
-    post = Post.objects.filter(id=post_id)[0]
-    post.title = request_data["title"]
-    post.content = request_data["content"]
-    post.save()
-    
-    response = JsonResponse({ "message": "updated post successfully." })
-    response.status_code = 200
-    return response
+    serializer = PostSerializer(post, data=request.data)
+    if serializer.is_valid():
+      serializer.save()
+      return Response({ "message": "updated post succesfully "})
+    return Response({ "message": "updated post failed" }, status=status.HTTP_400_BAD_REQUEST)
 
   if request.method == "DELETE":
-    post = Post.objects.filter(id=post_id)[0]
     post.delete()
-    
-    response = JsonResponse({ "message": "deleted post successfully" })
-    response.status_code = 200
-    return response
-
-  response = JsonResponse({ "data": { } })
-  response.status_code = 404
-  return response
+    return Response({ "message": "deleted post successfully" })
