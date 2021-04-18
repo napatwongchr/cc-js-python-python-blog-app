@@ -5,7 +5,8 @@ import json
 from django.db import connections
 
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from blogs.serializers import CommentSerializer, PostSerializer
 from blogs.models import Post, Comment
@@ -18,6 +19,7 @@ def comment_list(request, post_id):
     return Response({ "data": serializer.data })
 
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def post_list(request):
   if request.method == "GET":
     posts = Post.objects.all()
